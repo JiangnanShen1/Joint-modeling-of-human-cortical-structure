@@ -1,0 +1,445 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+```{r}
+options(stringsAsFactors = F)
+#genetic covariance matrix
+trait <- c(1021:1052,1055:1086)
+area_data <- read.csv("UKB/thickness_aparc_Desikan_correlation.csv")
+area_data_he <- read.csv("UKB/thickness_aparc_Desikan_heritability.csv")
+node_area <- read.csv("UKB/thickness.csv")
+trait_name <- node_area$IDP_short_name
+thickness_he <- area_data_he$heretability
+thickness_con_he <- abs(area_data$covariance_rg)
+area_cov <- matrix(1,nrow = 64,ncol = 64)
+for(i in 1:2016){
+  if (area_data$correlation_p[i]>0.05){
+    area_data$covariance_rg[i]=0
+  }
+}
+s <- 1
+for (i in 1:63){
+  for(j in (i+1):64){
+    area_cov[i,j] <- area_data$covariance_rg[s]
+    area_cov[j,i] <- area_cov[i,j]
+    s <-s+1
+  }
+}
+diag(area_cov) <- area_data_he$heretability
+
+
+#genetic correlation matrix
+area_cor <- matrix(1,nrow = 64,ncol = 64)
+s <- 1
+for (i in 1:63){
+  for(j in (i+1):64){
+    area_cor[i,j] <- area_data$correlation_rg[s]
+    area_cor[j,i] <- area_cor[i,j]
+    s <-s+1
+  }
+}
+```
+
+
+
+```{r}
+area_cov_l <- area_cov[1:32,1:32]
+area_cov_r <- area_cov[33:64,33:64]
+
+s2 <- eigen(area_cov_l)$value
+for(i in 1:32){if (s2[i]<0) s2[i] = 0}
+area_cov_l <- eigen(area_cov_l)$vectors%*% diag(s2) %*% t(eigen(area_cov_l)$vectors)
+
+s2 <- eigen(area_cov_r)$value
+for(i in 1:32){if (s2[i]<0) s2[i] = 0}
+area_cov_r <- eigen(area_cov_r)$vectors%*% diag(s2) %*% t(eigen(area_cov_r)$vectors)
+```
+
+```{r}
+#clime
+library(flare)
+length <-5
+out_area_l <- sugm(area_cov_l, method = "clime",lambda=c(0.147,0.21,0.256,0.28,0.322))
+out_area_r <- sugm(area_cov_r, method = "clime",lambda=c(0.152,0.222,0.253,0.277,0.313))
+#adj matrix
+adj=function(x){
+  for(i in 1:nrow(x)){
+    for (j in 1:ncol(x)){
+      if(x[i,j]!=0) x[i,j]=1
+    }
+  }
+  return(x)
+}
+network <- list()
+for(i in 1:length){
+  network[[i]] <- eval(parse(text=paste0('adj(out_area_l$icov[[',i,']])')))
+  network[[i+length]] <- eval(parse(text=paste0('adj(out_area_r$icov[[',i,']])')))
+}
+spar <- c()
+for(t in 1:(2*length)){
+  s <-0
+for (i in 1:32){
+  for(j in 1:32){
+    if (i!=j&&as.matrix(network[[t]])[i,j]!=0) s <-s+1
+    }
+}
+spar <- c(spar,s/(32*31))
+}
+spar
+```
+
+邻接矩阵存在network里，以下为邻接矩阵图
+
+```{r}
+ICA25_left = data.frame(Trait1=NA, Trait2=NA, correlation_rg=NA,correlation_se=NA,correlation_p=NA,correlation_z=NA,covariance_rg=NA,covariance_se=NA, Trait1_name=NA,Trait2_name=NA,Significance=NA)
+ICA25_right = data.frame(Trait1=NA, Trait2=NA, correlation_rg=NA,correlation_se=NA,correlation_p=NA,correlation_z=NA,covariance_rg=NA,covariance_se=NA, Trait1_name=NA,Trait2_name=NA,Significance=NA)
+ICA25_left <- ICA25_left[-1,]
+ICA25_right <- ICA25_right[-1,]
+for (i in 1:4096){
+  if(area_data$Trait1[i] %in% node_area$Node[1:32] &&area_data$Trait2[i] %in% node_area$Node[1:32]){
+    ICA25_left <- rbind(ICA25_left,area_data[i,])}
+  if(area_data$Trait1[i] %in% node_area$Node[33:64] &&area_data$Trait2[i] %in% node_area$Node[33:64]){
+    ICA25_right <- rbind(ICA25_right,area_data[i,])}
+}
+
+
+ICA25 <- list()
+for(m in 1:length){
+  s <- network[[m]]
+  t <- 1
+  data <- data.frame(Trait1 = ICA25_left$Trait1, Trait2 = ICA25_left$Trait2,Trait1_name=NA,Trait2_name=NA,covariance_rg =NA)
+  for(i in 1:31){
+    for (j in (i+1):32){
+       data[t,5] <- s[i,j]
+       data[t,3] <- node_area$IDP_short_name[which(node_area$Node == data$Trait1[t])]
+       data[t,4] <- node_area$IDP_short_name[which(node_area$Node == data$Trait2[t])]
+       t <- t+1
+    }
+  }
+ICA25[[m]] <- data
+for(i in trait[1:32]){
+  temp = data.frame(Trait1=i, Trait2=i, covariance_rg=1, Trait1_name=node_area$IDP_short_name[which(node_area$Node == i)],Trait2_name=node_area$IDP_short_name[which(node_area$Node == i)])
+  ICA25[[m]] = rbind(ICA25[[m]], temp)
+}
+for(i in 1:496){
+  temp = ICA25[[m]][i,]
+  temp_name = temp$Trait1[1]
+  temp$Trait1[1] = temp$Trait2[1]
+  temp$Trait2[1] = temp_name
+  temp_name = temp$Trait1_name[1]
+  temp$Trait1_name[1] = temp$Trait2_name[1]
+  temp$Trait2_name[1] = temp_name
+  ICA25[[m]] = rbind(ICA25[[m]], temp)
+}
+}
+
+for(m in (length+1):(2*length)){
+  s <- network[[m]]
+  t <- 1
+  data <- data.frame(Trait1 = ICA25_right$Trait1, Trait2 = ICA25_right$Trait2,Trait1_name=NA,Trait2_name=NA,covariance_rg =NA)
+  for(i in 1:31){
+    for (j in (i+1):32){
+       data[t,5] <- s[i,j]
+       data[t,3] <- node_area$IDP_short_name[which(node_area$Node == data$Trait1[t])]
+       data[t,4] <- node_area$IDP_short_name[which(node_area$Node == data$Trait2[t])]
+       t <- t+1
+    }
+  }
+ICA25[[m]] <- data
+for(i in trait[33:64]){
+  temp = data.frame(Trait1=i, Trait2=i, covariance_rg=1, Trait1_name=node_area$IDP_short_name[which(node_area$Node == i)],Trait2_name=node_area$IDP_short_name[which(node_area$Node == i)])
+  ICA25[[m]] = rbind(ICA25[[m]], temp)
+}
+for(i in 1:496){
+  temp = ICA25[[m]][i,]
+  temp_name = temp$Trait1[1]
+  temp$Trait1[1] = temp$Trait2[1]
+  temp$Trait2[1] = temp_name
+  temp_name = temp$Trait1_name[1]
+  temp$Trait1_name[1] = temp$Trait2_name[1]
+  temp$Trait2_name[1] = temp_name
+  ICA25[[m]] = rbind(ICA25[[m]], temp)
+}
+}
+```
+
+
+```{r}
+#原顺序的 genetic corvariance
+colfunc<-colorRampPalette(c("#00429d", "#fefefe", "#93003a"))
+myPalette <- colfunc(32)
+pdf("UKB/thickness_network.pdf", width=40, height=40)
+  gg = ggplot(ICA25[[1]], aes(x=Trait1_name, y=Trait2_name))
+  gg = gg + geom_tile(aes(fill=covariance_rg),color="white", size=0.1)
+  gg = gg + scale_fill_gradientn(colours=myPalette, limits=c(-1, 1),name = "sparsity = 0.2",breaks = c(1))
+  gg = gg + coord_equal()
+  gg = gg + labs(x=NULL, y=NULL)
+  gg = gg + theme_tufte(base_family="Helvetica")
+  gg = gg + theme(axis.ticks=element_blank())
+  gg = gg + theme(axis.text=element_text(size=36))
+  gg = gg + theme(axis.text.x=element_text(angle=90, hjust=1, vjust=0.5))
+  gg = gg + theme(legend.title=element_text(size=36, face="bold"),      legend.text=element_text(size=28),legend.key.size=unit(1,'cm'), legend.key.width=unit(1.2,'cm'),   legend.position = "top", legend.justification = "left")
+  gg
+gc()  
+  gg = ggplot(ICA25[[6]], aes(x=Trait1_name, y=Trait2_name))
+  gg = gg + geom_tile(aes(fill=covariance_rg),color="white", size=0.1)
+  gg = gg + scale_fill_gradientn(colours=myPalette, limits=c(-1, 1),name = "sparsity = 0.2",breaks = c(1))
+  gg = gg + coord_equal()
+  gg = gg + labs(x=NULL, y=NULL)
+  gg = gg + theme_tufte(base_family="Helvetica")
+  gg = gg + theme(axis.ticks=element_blank())
+  gg = gg + theme(axis.text=element_text(size=36))
+  gg = gg + theme(axis.text.x=element_text(angle=90, hjust=1, vjust=0.5))
+  gg = gg + theme(legend.title=element_text(size=36, face="bold"),      legend.text=element_text(size=28),legend.key.size=unit(1,'cm'), legend.key.width=unit(1.2,'cm'),   legend.position = "top", legend.justification = "left")
+  gg
+  
+  gg = ggplot(ICA25[[2]], aes(x=Trait1_name, y=Trait2_name))
+  gg = gg + geom_tile(aes(fill=covariance_rg),color="white", size=0.1)
+  gg = gg + scale_fill_gradientn(colours=myPalette, limits=c(-1, 1),name = "sparsity = 0.1",breaks = c(1))
+  gg = gg + coord_equal()
+  gg = gg + labs(x=NULL, y=NULL)
+  gg = gg + theme_tufte(base_family="Helvetica")
+  gg = gg + theme(axis.ticks=element_blank())
+  gg = gg + theme(axis.text=element_text(size=36))
+  gg = gg + theme(axis.text.x=element_text(angle=90, hjust=1, vjust=0.5))
+  gg = gg + theme(legend.title=element_text(size=36, face="bold"),      legend.text=element_text(size=28),legend.key.size=unit(1,'cm'), legend.key.width=unit(1.2,'cm'),   legend.position = "top", legend.justification = "left")
+  gg
+  
+  gg = ggplot(ICA25[[7]], aes(x=Trait1_name, y=Trait2_name))
+  gg = gg + geom_tile(aes(fill=covariance_rg),color="white", size=0.1)
+  gg = gg + scale_fill_gradientn(colours=myPalette, limits=c(-1, 1),name = "sparsity = 0.1",breaks = c(1))
+  gg = gg + coord_equal()
+  gg = gg + labs(x=NULL, y=NULL)
+  gg = gg + theme_tufte(base_family="Helvetica")
+  gg = gg + theme(axis.ticks=element_blank())
+  gg = gg + theme(axis.text=element_text(size=36))
+  gg = gg + theme(axis.text.x=element_text(angle=90, hjust=1, vjust=0.5))
+  gg = gg + theme(legend.title=element_text(size=36, face="bold"),      legend.text=element_text(size=28),legend.key.size=unit(1,'cm'), legend.key.width=unit(1.2,'cm'),   legend.position = "top", legend.justification = "left")
+  gg
+  
+  gg = ggplot(ICA25[[3]], aes(x=Trait1_name, y=Trait2_name))
+  gg = gg + geom_tile(aes(fill=covariance_rg),color="white", size=0.1)
+  gg = gg + scale_fill_gradientn(colours=myPalette, limits=c(-1, 1),name = "sparsity = 0.05",breaks = c(1))
+  gg = gg + coord_equal()
+  gg = gg + labs(x=NULL, y=NULL)
+  gg = gg + theme_tufte(base_family="Helvetica")
+  gg = gg + theme(axis.ticks=element_blank())
+  gg = gg + theme(axis.text=element_text(size=36))
+  gg = gg + theme(axis.text.x=element_text(angle=90, hjust=1, vjust=0.5))
+  gg = gg + theme(legend.title=element_text(size=36, face="bold"),      legend.text=element_text(size=28),legend.key.size=unit(1,'cm'), legend.key.width=unit(1.2,'cm'),   legend.position = "top", legend.justification = "left")
+  gg
+  
+    gg = ggplot(ICA25[[8]], aes(x=Trait1_name, y=Trait2_name))
+  gg = gg + geom_tile(aes(fill=covariance_rg),color="white", size=0.1)
+  gg = gg + scale_fill_gradientn(colours=myPalette, limits=c(-1, 1),name = "sparsity = 0.05",breaks = c(1))
+  gg = gg + coord_equal()
+  gg = gg + labs(x=NULL, y=NULL)
+  gg = gg + theme_tufte(base_family="Helvetica")
+  gg = gg + theme(axis.ticks=element_blank())
+  gg = gg + theme(axis.text=element_text(size=36))
+  gg = gg + theme(axis.text.x=element_text(angle=90, hjust=1, vjust=0.5))
+  gg = gg + theme(legend.title=element_text(size=36, face="bold"),      legend.text=element_text(size=28),legend.key.size=unit(1,'cm'), legend.key.width=unit(1.2,'cm'),   legend.position = "top", legend.justification = "left")
+  gg
+  
+    gg = ggplot(ICA25[[4]], aes(x=Trait1_name, y=Trait2_name))
+  gg = gg + geom_tile(aes(fill=covariance_rg),color="white", size=0.1)
+  gg = gg + scale_fill_gradientn(colours=myPalette, limits=c(-1, 1),name = "sparsity = 0.03",breaks = c(1))
+  gg = gg + coord_equal()
+  gg = gg + labs(x=NULL, y=NULL)
+  gg = gg + theme_tufte(base_family="Helvetica")
+  gg = gg + theme(axis.ticks=element_blank())
+  gg = gg + theme(axis.text=element_text(size=36))
+  gg = gg + theme(axis.text.x=element_text(angle=90, hjust=1, vjust=0.5))
+  gg = gg + theme(legend.title=element_text(size=36, face="bold"),      legend.text=element_text(size=28),legend.key.size=unit(1,'cm'), legend.key.width=unit(1.2,'cm'),   legend.position = "top", legend.justification = "left")
+  gg
+  
+    gg = ggplot(ICA25[[9]], aes(x=Trait1_name, y=Trait2_name))
+  gg = gg + geom_tile(aes(fill=covariance_rg),color="white", size=0.1)
+  gg = gg + scale_fill_gradientn(colours=myPalette, limits=c(-1, 1),name = "sparsity = 0.03",breaks = c(1))
+  gg = gg + coord_equal()
+  gg = gg + labs(x=NULL, y=NULL)
+  gg = gg + theme_tufte(base_family="Helvetica")
+  gg = gg + theme(axis.ticks=element_blank())
+  gg = gg + theme(axis.text=element_text(size=36))
+  gg = gg + theme(axis.text.x=element_text(angle=90, hjust=1, vjust=0.5))
+  gg = gg + theme(legend.title=element_text(size=36, face="bold"),      legend.text=element_text(size=28),legend.key.size=unit(1,'cm'), legend.key.width=unit(1.2,'cm'),   legend.position = "top", legend.justification = "left")
+  gg
+  
+    gg = ggplot(ICA25[[5]], aes(x=Trait1_name, y=Trait2_name))
+  gg = gg + geom_tile(aes(fill=covariance_rg),color="white", size=0.1)
+  gg = gg + scale_fill_gradientn(colours=myPalette, limits=c(-1, 1),name = "sparsity = 0.01",breaks = c(1))
+  gg = gg + coord_equal()
+  gg = gg + labs(x=NULL, y=NULL)
+  gg = gg + theme_tufte(base_family="Helvetica")
+  gg = gg + theme(axis.ticks=element_blank())
+  gg = gg + theme(axis.text=element_text(size=36))
+  gg = gg + theme(axis.text.x=element_text(angle=90, hjust=1, vjust=0.5))
+  gg = gg + theme(legend.title=element_text(size=36, face="bold"),      legend.text=element_text(size=28),legend.key.size=unit(1,'cm'), legend.key.width=unit(1.2,'cm'),   legend.position = "top", legend.justification = "left")
+  gg
+  
+    gg = ggplot(ICA25[[10]], aes(x=Trait1_name, y=Trait2_name))
+  gg = gg + geom_tile(aes(fill=covariance_rg),color="white", size=0.1)
+  gg = gg + scale_fill_gradientn(colours=myPalette, limits=c(-1, 1),name = "sparsity = 0.01",breaks = c(1))
+  gg = gg + coord_equal()
+  gg = gg + labs(x=NULL, y=NULL)
+  gg = gg + theme_tufte(base_family="Helvetica")
+  gg = gg + theme(axis.ticks=element_blank())
+  gg = gg + theme(axis.text=element_text(size=36))
+  gg = gg + theme(axis.text.x=element_text(angle=90, hjust=1, vjust=0.5))
+  gg = gg + theme(legend.title=element_text(size=36, face="bold"),      legend.text=element_text(size=28),legend.key.size=unit(1,'cm'), legend.key.width=unit(1.2,'cm'),   legend.position = "top", legend.justification = "left")
+  gg
+dev.off()
+```
+
+
+
+
+
+
+```{r}
+#原顺序的 genetic correlation
+ICA25 <- area_data
+  for(i in 1:2016){
+       ICA25$Trait1_name[i] <- node_area$IDP_short_name[which(node_area$Node == ICA25$Trait1[i])]
+       ICA25$Trait2_name[i] <- node_area$IDP_short_name[which(node_area$Node == ICA25$Trait2[i])]
+
+  }
+for(i in trait){
+  temp = data.frame(Trait1=i, Trait2=i, correlation_rg=NA,correlation_se=NA,correlation_p=NA,correlation_z=NA,covariance_rg=NA,covariance_se=NA, Trait1_name=node_area$IDP_short_name[which(node_area$Node == i)],Trait2_name=node_area$IDP_short_name[which(node_area$Node == i)])
+  ICA25 = rbind(ICA25, temp)
+}
+for(i in 1:2016){
+  temp = ICA25[i,]
+  temp_name = temp$Trait1[1]
+  temp$Trait1[1] = temp$Trait2[1]
+  temp$Trait2[1] = temp_name
+  temp_name = temp$Trait1_name[1]
+  temp$Trait1_name[1] = temp$Trait2_name[1]
+  temp$Trait2_name[1] = temp_name
+  ICA25 = rbind(ICA25, temp)
+}
+ICA25$Significance = ""
+ICA25$Significance[ICA25$correlation_p<(0.05/496)] = "*"
+colfunc<-colorRampPalette(c("#00429d", "#fefefe", "#93003a"))
+myPalette <- colfunc(32)
+
+ICA25_left = data.frame(Trait1=NA, Trait2=NA, correlation_rg=NA,correlation_se=NA,correlation_p=NA,correlation_z=NA,covariance_rg=NA,covariance_se=NA, Trait1_name=NA,Trait2_name=NA,Significance=NA)
+ICA25_right = data.frame(Trait1=NA, Trait2=NA, correlation_rg=NA,correlation_se=NA,correlation_p=NA,correlation_z=NA,covariance_rg=NA,covariance_se=NA, Trait1_name=NA,Trait2_name=NA,Significance=NA)
+ICA25_left <- ICA25_left[-1,]
+ICA25_right <- ICA25_right[-1,]
+
+for (i in 1:4096){
+  if(ICA25$Trait1[i] %in% node_area$Node[1:32] &&ICA25$Trait2[i] %in% node_area$Node[1:32]){
+    ICA25_left <- rbind(ICA25_left,ICA25[i,])}
+  if(ICA25$Trait1[i] %in% node_area$Node[33:64] &&ICA25$Trait2[i] %in% node_area$Node[33:64]){
+    ICA25_right <- rbind(ICA25_right,ICA25[i,])}
+}
+
+
+pdf("UKB/thickness_correlation.pdf", width=30, height=30)
+gg = ggplot(ICA25_left, aes(x=Trait1_name, y=Trait2_name))
+gg = gg + geom_tile(aes(fill=correlation_rg),color="white", size=0.1)
+gg = gg + geom_text(aes(label=Significance), size=20, vjust=0.8)
+gg = gg + scale_fill_gradientn(colours=myPalette, limits=c(-1, 1), name="genetic correlation", breaks=c(-1,0,1))
+gg = gg + coord_equal()
+gg = gg + labs(x=NULL, y=NULL)
+gg = gg + theme_tufte(base_family="Helvetica")
+gg = gg + theme(axis.ticks=element_blank())
+gg = gg + theme(axis.text=element_text(size=36))
+gg = gg + theme(axis.text.x=element_text(angle=90, hjust=1, vjust=0.5))
+gg = gg + theme(legend.title=element_text(size=36, face="bold"), legend.text=element_text(size=28),legend.key.size=unit(1,'cm'), legend.key.width=unit(1.2,'cm'), legend.position = "top", legend.justification = "left")
+gg
+
+gg = ggplot(ICA25_right, aes(x=Trait1_name, y=Trait2_name))
+gg = gg + geom_tile(aes(fill=correlation_rg),color="white", size=0.1)
+gg = gg + geom_text(aes(label=Significance), size=20, vjust=0.8)
+gg = gg + scale_fill_gradientn(colours=myPalette, limits=c(-1, 1), name="genetic correlation", breaks=c(-1,0,1))
+gg = gg + coord_equal()
+gg = gg + labs(x=NULL, y=NULL)
+gg = gg + theme_tufte(base_family="Helvetica")
+gg = gg + theme(axis.ticks=element_blank())
+gg = gg + theme(axis.text=element_text(size=36))
+gg = gg + theme(axis.text.x=element_text(angle=90, hjust=1, vjust=0.5))
+gg = gg + theme(legend.title=element_text(size=36, face="bold"), legend.text=element_text(size=28),legend.key.size=unit(1,'cm'), legend.key.width=unit(1.2,'cm'), legend.position = "top", legend.justification = "left")
+gg
+dev.off()
+```
+
+
+```{r}
+######## to determine the order, just need to run it in the first run ##########
+
+ICA25_left$Trait1_name = ordered(ICA25_left$Trait1_name, levels=trait_name)
+ICA25_left$Trait2_name = ordered(ICA25_left$Trait2_name, levels=trait_name)
+ldsc.hclust <- matrix(1, nrow=32, ncol=32)
+rownames(ldsc.hclust) = unique(ICA25_left$Trait1_name)
+colnames(ldsc.hclust) = sort(unique(ICA25_left$Trait2_name))
+
+for(i in 1:496){
+  temp=ICA25_left[i,]
+  m1 <-which(trait ==temp$Trait1[1])
+  m2 <-which(trait ==temp$Trait2[1])
+  ldsc.hclust[m1, m2] = temp$correlation_rg[1]
+  ldsc.hclust[m2, m1] = temp$correlation_rg[1]
+}
+a_left=heatmap(ldsc.hclust)
+###################################################################################
+ICA25_right$Trait1_name = ordered(ICA25_right$Trait1_name, levels=trait_name)
+ICA25_right$Trait2_name = ordered(ICA25_right$Trait2_name, levels=trait_name)
+ldsc.hclust <- matrix(1, nrow=32, ncol=32)
+rownames(ldsc.hclust) = unique(ICA25_right$Trait1_name)
+colnames(ldsc.hclust) = sort(unique(ICA25_right$Trait2_name))
+
+for(i in 1:496){
+  temp=ICA25_right[i,]
+  m1 <-which(trait ==temp$Trait1[1])
+  m2 <-which(trait ==temp$Trait2[1])
+  ldsc.hclust[m1-32, m2-32] = temp$correlation_rg[1]
+  ldsc.hclust[m2-32, m1-32] = temp$correlation_rg[1]
+}
+a_right=heatmap(ldsc.hclust)
+################################################################################
+```
+
+```{r}
+#排序后的genetic correlation
+order_of_traits_left = unique(ICA25_left$Trait1_name)[a_left$rowInd]
+ICA25_left$Trait1_name = ordered(ICA25_left$Trait1_name, levels=order_of_traits_left)
+ICA25_left$Trait2_name = ordered(ICA25_left$Trait2_name, levels=order_of_traits_left)
+
+order_of_traits_right = unique(ICA25_right$Trait1_name)[a_right$rowInd]
+ICA25_right$Trait1_name = ordered(ICA25_right$Trait1_name, levels=order_of_traits_right)
+ICA25_right$Trait2_name = ordered(ICA25_right$Trait2_name, levels=order_of_traits_right)
+
+colfunc<-colorRampPalette(c("#00429d", "#fefefe", "#93003a"))
+myPalette <- colfunc(32)
+pdf("UKB/thickness_correlation_ordered.pdf", width=30, height=30)
+gg = ggplot(ICA25_left, aes(x=Trait1_name, y=Trait2_name))
+gg = gg + geom_tile(aes(fill=correlation_rg),color="white", size=0.1)
+gg = gg + geom_text(aes(label=Significance), size=20, vjust=0.8)
+gg = gg + scale_fill_gradientn(colours=myPalette, limits=c(-1, 1), name="genetic correlation", breaks=c(-1,0,1))
+gg = gg + coord_equal()
+gg = gg + labs(x=NULL, y=NULL)
+gg = gg + theme_tufte(base_family="Helvetica")
+gg = gg + theme(axis.ticks=element_blank())
+gg = gg + theme(axis.text=element_text(size=36))
+gg = gg + theme(axis.text.x=element_text(angle=90, hjust=1, vjust=0.5))
+gg = gg + theme(legend.title=element_text(size=36, face="bold"), legend.text=element_text(size=28),legend.key.size=unit(1,'cm'), legend.key.width=unit(1.2,'cm'), legend.position = "top", legend.justification = "left")
+gg
+
+gg = ggplot(ICA25_right, aes(x=Trait1_name, y=Trait2_name))
+gg = gg + geom_tile(aes(fill=correlation_rg),color="white", size=0.1)
+gg = gg + geom_text(aes(label=Significance), size=20, vjust=0.8)
+gg = gg + scale_fill_gradientn(colours=myPalette, limits=c(-1, 1), name="genetic correlation", breaks=c(-1,0,1))
+gg = gg + coord_equal()
+gg = gg + labs(x=NULL, y=NULL)
+gg = gg + theme_tufte(base_family="Helvetica")
+gg = gg + theme(axis.ticks=element_blank())
+gg = gg + theme(axis.text=element_text(size=36))
+gg = gg + theme(axis.text.x=element_text(angle=90, hjust=1, vjust=0.5))
+gg = gg + theme(legend.title=element_text(size=36, face="bold"), legend.text=element_text(size=28),legend.key.size=unit(1,'cm'), legend.key.width=unit(1.2,'cm'), legend.position = "top", legend.justification = "left")
+gg
+dev.off()
+```

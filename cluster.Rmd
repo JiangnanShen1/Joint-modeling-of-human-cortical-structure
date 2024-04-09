@@ -1,0 +1,260 @@
+---
+title: "cluster"
+output: html_document
+---
+
+```{r}
+options(stringsAsFactors = F)
+#trait <- c(649:681,683:715)
+#area_data <- read.csv("area_aparc_Desikan_correlation.csv")
+#area_data_he <- read.csv("area_aparc_Desikan_heritability.csv")
+#node_area <- read.csv("area.csv")
+
+#trait <- c(1021:1053,1055:1087)
+#area_data <- read.csv("thickness_aparc_Desikan_correlation.csv")
+#area_data_he <- read.csv("thickness_aparc_Desikan_heritability.csv")
+#node_area <- read.csv("thickness.csv")
+
+trait <- c(344:409)
+area_data <- read.csv("volume_aparc_Desikan_correlation.csv")
+area_data_he <- read.csv("volume_aparc_Desikan_heritability.csv")
+node_area <- read.csv("volume.csv")
+for(i in 1:2145){
+    if (area_data$correlation_p[i]>0.05){
+    area_data$covariance_rg[i]=0
+    }
+   if(area_data$correlation_rg[i]<(-1)){
+     area_data$correlation_rg[i] = -1
+     print(i)
+   }
+  if(area_data$correlation_rg[i]>(1)){
+     area_data$correlation_rg[i] = 1
+     print(i)
+   }
+
+}
+
+ICA25 <- area_data
+  for(i in 1:2145){
+       ICA25$Trait1_name[i] <- node_area$IDP_short_name[which(node_area$Node == ICA25$Trait1[i])]
+       ICA25$Trait2_name[i] <- node_area$IDP_short_name[which(node_area$Node == ICA25$Trait2[i])]
+  }
+for(i in trait){
+  temp = data.frame(Trait1=i, Trait2=i, correlation_rg=1,correlation_se=NA,correlation_p=NA,correlation_z=NA,covariance_rg=area_data_he[which(area_data_he$Trait==i),]$heretability,covariance_se=NA, Trait1_name=node_area$IDP_short_name[which(node_area$Node == i)],Trait2_name=node_area$IDP_short_name[which(node_area$Node == i)])
+  ICA25 = rbind(ICA25, temp)
+}
+ICA25_left = data.frame(Trait1=NA, Trait2=NA, correlation_rg=NA,correlation_se=NA,correlation_p=NA,correlation_z=NA,covariance_rg=NA,covariance_se=NA, Trait1_name=NA,Trait2_name=NA,Significance=NA)
+ICA25_right = data.frame(Trait1=NA, Trait2=NA, correlation_rg=NA,correlation_se=NA,correlation_p=NA,correlation_z=NA,covariance_rg=NA,covariance_se=NA, Trait1_name=NA,Trait2_name=NA,Significance=NA)
+ICA25_left <- ICA25_left[-1,]
+ICA25_right <- ICA25_right[-1,]
+for (i in 1:4356){
+  if(ICA25$Trait1[i] %in% node_area$Node[1:33] &&ICA25$Trait2[i] %in% node_area$Node[1:33]){
+    ICA25_left <- rbind(ICA25_left,ICA25[i,])}
+  if(ICA25$Trait1[i] %in% node_area$Node[34:66] &&ICA25$Trait2[i] %in% node_area$Node[34:66]){
+    ICA25_right <- rbind(ICA25_right,ICA25[i,])}
+}
+ldsc.hclust.l <- matrix(1, nrow=33, ncol=33)
+ldsc.hclust.r <- matrix(1, nrow=33, ncol=33)
+rownames(ldsc.hclust.l) = unique(ICA25_left$Trait1_name)
+colnames(ldsc.hclust.l) = sort(unique(ICA25_left$Trait2_name))
+rownames(ldsc.hclust.r) = unique(ICA25_right$Trait1_name)
+colnames(ldsc.hclust.r) = sort(unique(ICA25_right$Trait2_name))
+
+correlation_l <- matrix(1, nrow=33, ncol=33)
+correlation_r <- matrix(1, nrow=33, ncol=33)
+
+for(i in 1:561){
+  temp=ICA25_left[i,]
+  m1 <-which(trait ==temp$Trait1[1])
+  m2 <-which(trait ==temp$Trait2[1])
+  ldsc.hclust.l[m1, m2] = temp$covariance_rg[1]
+  ldsc.hclust.l[m2, m1] = temp$covariance_rg[1]
+  correlation_l[m1, m2] = temp$correlation_rg[1]
+  correlation_l[m2, m1] = temp$correlation_rg[1]
+}
+for(i in 1:561){
+  temp=ICA25_right[i,]
+  m1 <-which(trait ==temp$Trait1[1])
+  m2 <-which(trait ==temp$Trait2[1])
+  ldsc.hclust.r[m1-33, m2-33] = temp$covariance_rg[1]
+  ldsc.hclust.r[m2-33, m1-33] = temp$covariance_rg[1]
+  correlation_r[m1-33, m2-33] = temp$correlation_rg[1]
+  correlation_r[m2-33, m1-33] = temp$correlation_rg[1]
+}
+```
+
+
+```{r}
+dia <- eigen(ldsc.hclust.l)$values
+for(i in 1:33){
+  dia[i] <- max(dia[i],0)
+}
+ldsc.hclust.l <- eigen(ldsc.hclust.l)$vectors%*%diag(dia)%*%t(eigen(ldsc.hclust.l)$vectors)
+
+dia_r <- eigen(ldsc.hclust.r)$values
+for(i in 1:33){
+  dia_r[i] <- max(dia_r[i],0)
+}
+ldsc.hclust.r <- eigen(ldsc.hclust.r)$vectors%*%diag(dia)%*%t(eigen(ldsc.hclust.r)$vectors)
+```
+
+
+
+```{r}
+l <- 33
+d_l <- matrix(1,ncol=33,nrow=33)
+d_r <- matrix(1,ncol=33,nrow=33)
+  for(i in 1:l){
+    for(j in 1:l){
+      d_l[i,j]<- sqrt(abs(area_data_he[i,]$heretability+area_data_he[j,]$heretability-2*sqrt(area_data_he[i,]$heretability*area_data_he[j,]$heretability)*correlation_l[i,j]))
+      d_r[i,j]<- sqrt(abs(area_data_he[i+33,]$heretability+area_data_he[j+33,]$heretability-2*sqrt(area_data_he[i+33,]$heretability*area_data_he[j+33,]$heretability)*correlation_r[i,j]))
+    }
+  }
+```
+
+```{r}
+similar <- function(w,alpha){
+  n1 <- ncol(w)
+  for(i in 1:n1){
+    for(j in 1:n1){
+      w[i,j] <- exp(-(w[i,j]/alpha)^2)
+    }
+  }
+  return(w)
+}
+```
+
+```{r}
+cut<- function(weight,A,B){
+  return(sum(weight[A,B]))
+}
+
+assoc <- function(weight,A){
+  return(sum(weight[A,]))
+}
+
+ncut <- function(weight,A,B){
+  return(cut(weight,A,B)/assoc(weight,A)+cut(weight,A,B)/assoc(weight,B))
+}
+```
+
+```{r}
+partition_2_way <- function(W,partition,n,threshold){
+  ref <-100
+  divid <-c()
+  for(i in 1:(n-1)){
+  par <- partition[which(rank(partition)==i)]
+  A <- which(partition>par)
+  B <- which(partition<=par)
+  if (ncut(W,A,B) <= ref && ncut(W,A,B)<= threshold){
+    ref <- ncut(W,A,B) 
+    divid <- A
+      }
+    }
+  if(is.null(divid)) {return(-1)}
+  return(divid)
+}
+```
+
+
+
+
+```{r}
+# bug
+partition_matrix <- function(w){
+  if(!is.matrix(w)) {return(1)}
+  n <- ncol(w)
+  D <- matrix(0,nrow=n,ncol=n)
+  D_0.5 <- matrix(0,nrow=n,ncol=n)
+  for(i in 1:n){
+    diag(D)[i] <- sum(w[i,])
+    diag(D_0.5)[i]<- diag(D)[i]^(-1/2)
+  }
+  matr <-D_0.5%*%(D-w)%*%D_0.5
+  partition <- eigen(matr)$vectors[,(n-1)]
+  if(partition_2_way(partition,n,threshold)!=-1){
+    A <- partition_2_way(partition,n,threshold)
+    B <- c(1:n)[-which(1:n %in% A)]
+    subdiv1 <- A[partition_matrix(w[A,A])]
+    print(subdiv1)
+    subdiv2 <- B[partition_matrix(w[B,B])]
+    print(subdiv2)
+  }else{
+    return(1:n)
+  }
+  return(list(subdiv1,subdiv2))
+}
+s <- partition_matrix(W)
+```
+
+
+
+```{r}
+
+eigenvalueNb <-3
+threshold <-0.5
+
+ei <-function(W,eigenvalueNb){
+  if(!isSymmetric(W)){
+    print("The input is not a symmetric matrix")
+    return()
+  }
+  di <- list()
+  di[[1]] <-1:(ncol(W))
+  n <- ncol(W)
+  ###create the diagnol diagonal matrix D
+  D <- matrix(0,nrow=n,ncol=n)
+  D_0.5 <- matrix(0,nrow=n,ncol=n)
+  for(i in 1:n){
+    diag(D)[i] <- sum(W[i,])
+    diag(D_0.5)[i]<- diag(D)[i]^(-1/2)
+  }
+  matr <-D_0.5%*%(D-W)%*%D_0.5
+  partition <- eigen(matr)$vectors[,(n-eigenvalueNb):(n-1)]
+    if(eigenvalueNb==1){
+    return(partition_2_way(W,partition,n,threshold))}
+
+  for (i in 1:eigenvalueNb){
+     l <- partition_2_way(W,partition[,(eigenvalueNb+1-i)],n,threshold=2)
+    for(j in 1:(2^(i-1))){
+      di[[(2^(i-1))+j]] <- di[[j]][!( di[[j]] %in% l)]
+      di[[j]] <- di[[j]][( di[[j]] %in% l)]
+    }
+  }
+  return(di)
+}
+```     
+
+```{r}
+result <-matrix(ncol=33,nrow=(2*length))
+for(i in 1:length){
+  result[i,] <- unlist(ei(si_l[[i]],2))
+  result[i+length,] <- unlist(ei(si_r[[i]],2))
+}
+```
+
+
+
+```{r}
+#write.csv(result, "area_cluster.csv")
+#write.csv(result, "thickness_cluster.csv")
+#write.csv(result, "volume_cluster3.csv")
+```
+
+
+```{r}
+correlation_l_xiu <- matrix(1,ncol=ncol(correlation_l),nrow=nrow(correlation_l))
+correlation_r_xiu <- matrix(1,ncol=ncol(correlation_r),nrow=nrow(correlation_r))
+for(i in 1:ncol(correlation_r)){
+  for(j in 1:ncol(correlation_r)){
+    correlation_l_xiu[i,j] <- correlation_l[i,j]+1
+    correlation_r_xiu[i,j] <- correlation_r[i,j]+1
+  }
+}
+```
+
+
+```{r}
+print(ei(correlation_l_xiu,2))
+```
+

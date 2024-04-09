@@ -1,0 +1,144 @@
+---
+title: "area"
+output: html_document
+---
+
+```{r}
+options(stringsAsFactors = F)
+#genetic covariance matrix
+area_data <- read.csv("UKB/area_aparc_Desikan_correlation.csv")
+area_data_he <- read.csv("UKB/area_aparc_Desikan_heritability.csv")
+node_area <- read.csv("UKB/area.csv")
+trait_name <- node_area$IDP_short_name
+area_cov <- matrix(1,nrow = 64,ncol = 64)
+s <- 1
+for (i in 1:63){
+  for(j in (i+1):64){
+    area_cov[i,j] <- area_data$covariance_rg[s]
+    area_cov[j,i] <- area_cov[i,j]
+    s <-s+1
+  }
+}
+diag(area_cov) <- area_data_he$heretability
+
+
+#genetic correlation matrix
+area_cor <- matrix(1,nrow = 64,ncol = 64)
+s <- 1
+for (i in 1:63){
+  for(j in (i+1):64){
+    area_cor[i,j] <- area_data$correlation_rg[s]
+    area_cor[j,i] <- area_cor[i,j]
+    s <-s+1
+  }
+}
+```
+
+
+```{r}
+s2 <- eigen(area_cov)$value
+for(i in 1:64){if (s2[i]<0) s2[i] = 0}
+area_cov <- eigen(area_cov)$vectors%*% diag(s2) %*% t(eigen(area_cov)$vectors)
+```
+
+
+```{r}
+#clime
+library(flare)
+out <- sugm(area_cov, method = "clime")
+```
+
+```{r}
+#adj matrix
+adj=function(x){
+  for(i in 1:nrow(x)){
+    for (j in 1:ncol(x)){
+      if(x[i,j]!=0) x[i,j]=1
+    }
+  }
+  return(x)
+}
+ s <- adj(out$icov[[1]])
+```
+
+```{r}
+plot.network = function(x,align = FALSE,start,end){
+  gcinfo(FALSE)
+s <- ceiling((end-start)/5) 
+par(mfrow = c(s, 5), pty = "s", omi=c(0.3,0.3,0.3,0.3), mai = c(0.3,0.3,0.3,0.3))
+  if(!align){
+    for(i in start:end){
+      g = graph.adjacency(as.matrix(x$path[[i]]), mode="undirected", diag=FALSE)
+      layout.grid = layout.fruchterman.reingold(g)
+      plot(g, layout=layout.grid, edge.color='gray50',,vertex.color="red", vertex.size=3, main = paste("lambda = ",as.character(round(x$lambda[i],3)),sep = ""),vertex.label=NA)
+      rm(g,layout.grid)
+      gc()
+    }
+  }
+}
+plot.network(out,start=1,end=2) 
+```
+
+```{r}
+plot.network = function(x){
+  gcinfo(FALSE)
+      g = graph.adjacency(x, mode="undirected", diag=FALSE)
+      layout.grid = layout.fruchterman.reingold(g)
+      plot(g, layout=layout.grid, edge.color='gray50',vertex.color="red", vertex.size=3,vertex.label=NA)
+      rm(g,layout.grid)
+      gc()
+}
+plot.network(s)
+```
+
+
+```{r}
+  t <- 1
+
+  data <- data.frame(Trait1 = area_data$Trait1, Trait2 = area_data$Trait2,Trait1_name=NA,Trait2_name=NA,covariance_rg =NA)
+  for(i in 1:63){
+    for (j in (i+1):64){
+       data[t,5] <- s[i,j]
+       data[t,3] <- node_area$IDP_short_name[which(node_area$Node == data$Trait1[t])]
+       data[t,4] <- node_area$IDP_short_name[which(node_area$Node == data$Trait2[t])]
+       t <- t+1
+    }
+  }
+ICA25 <- data
+for(i in trait){
+  temp = data.frame(Trait1=i, Trait2=i, covariance_rg=0, Trait1_name=node_area$IDP_short_name[which(node_area$Node == i)],Trait2_name=node_area$IDP_short_name[which(node_area$Node == i)])
+  ICA25 = rbind(ICA25, temp)
+}
+for(i in 1:2016){
+  temp = ICA25[i,]
+  temp_name = temp$Trait1[1]
+  temp$Trait1[1] = temp$Trait2[1]
+  temp$Trait2[1] = temp_name
+  temp_name = temp$Trait1_name[1]
+  temp$Trait1_name[1] = temp$Trait2_name[1]
+  temp$Trait2_name[1] = temp_name
+  ICA25 = rbind(ICA25, temp)
+}
+
+```
+
+
+```{r}
+#原顺序的 genetic corvariance
+colfunc<-colorRampPalette(c("#00429d", "#fefefe", "#93003a"))
+myPalette <- colfunc(32)
+pdf("UKB/area_network.pdf", width=50, height=50)
+gg = ggplot(ICA25, aes(x=Trait1_name, y=Trait2_name))
+gg = gg + geom_tile(aes(fill=covariance_rg),color="white", size=0.1)
+gg = gg + scale_fill_gradientn(colours=myPalette, limits=c(-1, 1), name=" ", breaks=c(-1,0,1))
+gg = gg + coord_equal()
+gg = gg + labs(x=NULL, y=NULL)
+gg = gg + theme_tufte(base_family="Helvetica")
+gg = gg + theme(axis.ticks=element_blank())
+gg = gg + theme(axis.text=element_text(size=36))
+gg = gg + theme(axis.text.x=element_text(angle=90, hjust=1, vjust=0.5))
+gg = gg + theme(legend.title=element_text(size=36, face="bold"), legend.text=element_text(size=28),legend.key.size=unit(1,'cm'), legend.key.width=unit(1.2,'cm'), legend.position = "top", legend.justification = "left")
+gg
+dev.off()
+```
+

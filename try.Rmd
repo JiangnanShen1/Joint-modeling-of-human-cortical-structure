@@ -1,0 +1,150 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+```{r}
+dataset <- data.frame(heritability=c(volume_he,thickness_he,area_he),group=factor(rep(c("volumeL","volumeR","thicknessL","thicknessR","areaL","areaR"), each = 32)))
+boxplot(heritability~group,data=dataset)
+dataset <- data.frame(heritability=c(volume_he,thickness_he,area_he),group=factor(rep(c("volume","thickness","area"), each = 64)))
+boxplot(heritability~group,data=dataset)
+```
+
+```{r}
+dataset <- data.frame(heritability=c(volume_con_he,thickness_con_he,area_con_he),group=factor(rep(c("volume","thickness","area"), each = 2016)))
+boxplot(heritability~group,data=dataset)
+```
+
+```{r}
+area_data <- read.csv("UKB/area_aparc_Desikan_correlation.csv")
+area_data_he <- read.csv("UKB/area_aparc_Desikan_heritability.csv")
+node_area <- read.csv("UKB/area.csv")
+ICA25 <- area_data
+  for(i in 1:2016){
+       ICA25$Trait1_name[i] <- node_area$IDP_short_name[which(node_area$Node == ICA25$Trait1[i])]
+       ICA25$Trait2_name[i] <- node_area$IDP_short_name[which(node_area$Node == ICA25$Trait2[i])]
+
+  }
+for(i in 1:2016){
+  temp = ICA25[i,]
+  temp_name = temp$Trait1[1]
+  temp$Trait1[1] = temp$Trait2[1]
+  temp$Trait2[1] = temp_name
+  temp_name = temp$Trait1_name[1]
+  temp$Trait1_name[1] = temp$Trait2_name[1]
+  temp$Trait2_name[1] = temp_name
+  ICA25 = rbind(ICA25, temp)
+}
+ICA25$Significance = ""
+ICA25$Significance[ICA25$correlation_p<(0.05/2016)] = "*"
+area_rl <-rep(0,time=64)
+m<-c()
+for(i in 1:32){
+  s_l <- which(ICA25$Trait1_name==node_area$IDP_short_name[i])
+  s_r <- which(ICA25$Trait1_name==node_area$IDP_short_name[(i+32)])
+  t_l <- 0
+  t_r <- 0
+  for(j in s_l){
+    if(ICA25$Significance[j]=="*") t_l <- t_l+1
+  }
+  for(j in s_r){
+    if(ICA25$Significance[j]=="*") t_r <- t_r+1
+  }
+m<-c(m,t_l,t_r)
+}
+m_area <- m
+```
+
+```{r}
+area_data <- read.csv("UKB/volume_aparc_Desikan_correlation.csv")
+area_data_he <- read.csv("UKB/volume_aparc_Desikan_heritability.csv")
+node_area <- read.csv("UKB/volume.csv")
+ICA25 <- area_data
+  for(i in 1:2016){
+       ICA25$Trait1_name[i] <- node_area$IDP_short_name[which(node_area$Node == ICA25$Trait1[i])]
+       ICA25$Trait2_name[i] <- node_area$IDP_short_name[which(node_area$Node == ICA25$Trait2[i])]
+
+  }
+for(i in 1:2016){
+  temp = ICA25[i,]
+  temp_name = temp$Trait1[1]
+  temp$Trait1[1] = temp$Trait2[1]
+  temp$Trait2[1] = temp_name
+  temp_name = temp$Trait1_name[1]
+  temp$Trait1_name[1] = temp$Trait2_name[1]
+  temp$Trait2_name[1] = temp_name
+  ICA25 = rbind(ICA25, temp)
+}
+ICA25$Significance = ""
+ICA25$Significance[ICA25$correlation_p<(0.05/2016)] = "*"
+area_rl <-rep(0,time=64)
+m<-c()
+for(i in 1:32){
+  s_l <- which(ICA25$Trait1_name==node_area$IDP_short_name[i])
+  s_r <- which(ICA25$Trait1_name==node_area$IDP_short_name[(i+32)])
+  t_l <- 0
+  t_r <- 0
+  for(j in s_l){
+    if(ICA25$Significance[j]=="*") t_l <- t_l+1
+  }
+  for(j in s_r){
+    if(ICA25$Significance[j]=="*") t_r <- t_r+1
+  }
+m<-c(m,t_l,t_r)
+}
+m_volume <-m
+```
+
+```{r}
+area_data <- read.csv("UKB/thickness_aparc_Desikan_correlation.csv")
+area_data_he <- read.csv("UKB/thickness_aparc_Desikan_heritability.csv")
+node_area <- read.csv("UKB/thickness.csv")
+ICA25 <- area_data
+  for(i in 1:2016){
+       ICA25$Trait1_name[i] <- node_area$IDP_short_name[which(node_area$Node == ICA25$Trait1[i])]
+       ICA25$Trait2_name[i] <- node_area$IDP_short_name[which(node_area$Node == ICA25$Trait2[i])]
+
+  }
+for(i in 1:2016){
+  temp = ICA25[i,]
+  temp_name = temp$Trait1[1]
+  temp$Trait1[1] = temp$Trait2[1]
+  temp$Trait2[1] = temp_name
+  temp_name = temp$Trait1_name[1]
+  temp$Trait1_name[1] = temp$Trait2_name[1]
+  temp$Trait2_name[1] = temp_name
+  ICA25 = rbind(ICA25, temp)
+}
+ICA25$Significance = ""
+ICA25$Significance[ICA25$correlation_p<(0.05/2016)] = "*"
+area_rl <-rep(0,time=64)
+m<-c()
+for(i in 1:32){
+  s_l <- which(ICA25$Trait1_name==node_area$IDP_short_name[i])
+  s_r <- which(ICA25$Trait1_name==node_area$IDP_short_name[(i+32)])
+  t_l <- 0
+  t_r <- 0
+  for(j in s_l){
+    if(ICA25$Significance[j]=="*") t_l <- t_l+1
+  }
+  for(j in s_r){
+    if(ICA25$Significance[j]=="*") t_r <- t_r+1
+  }
+m<-c(m,t_l,t_r)
+}
+m_thickness<-m
+```
+
+
+```{r}
+sum(m_area[seq(1,63,by=2)])
+sum(m_area[seq(2,64,by=2)])
+sum(m_volume[seq(1,63,by=2)])
+sum(m_volume[seq(2,64,by=2)])
+sum(m_thickness[seq(1,63,by=2)])
+sum(m_thickness[seq(2,64,by=2)])
+```
+
+```{r}
+write.csv(clime_area,"area")
+```
