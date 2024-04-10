@@ -124,7 +124,7 @@ dev.off()
 
 
 
-set.seed(123) # 设置随机种子以便结果可复现
+set.seed(123) 
 random_g <- degree.sequence.game(degree_sequence, method = "vl")
 while(!is_connected(random_g)) {
   random_g <- degree.sequence.game(degree_sequence, method = "vl")

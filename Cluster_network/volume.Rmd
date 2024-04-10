@@ -301,7 +301,7 @@ dev.off()
 
 
 ```{r}
-#原顺序的 genetic correlation
+
 ICA25 <- area_data
   for(i in 1:2016){
        ICA25$Trait1_name[i] <- node_area$IDP_short_name[which(node_area$Node == ICA25$Trait1[i])]
@@ -406,7 +406,7 @@ a_right=heatmap(ldsc.hclust)
 
 
 ```{r}
-#排序后的genetic correlation
+
 order_of_traits_left = unique(ICA25_left$Trait1_name)[a_left$rowInd]
 ICA25_left$Trait1_name = ordered(ICA25_left$Trait1_name, levels=order_of_traits_left)
 ICA25_left$Trait2_name = ordered(ICA25_left$Trait2_name, levels=order_of_traits_left)

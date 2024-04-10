@@ -5,7 +5,7 @@ library(ggrepel)
 library(sna)
 library(dplyr)
 
-#数据前处理
+
 volume<-read.csv(".csv")
 #area
 volume$group <- c(1, 2, 2, 3, 1, 1, 1, 1, 3, 3, 2, 3, 2, 1, 1, 2 ,2, 2, 2, 3 ,1 ,2, 2, 1, 2, 2, 2, 1, 2, 1, 2, 2 ,2 ,1 ,2, 2 ,3, 1, 1 ,1 ,1, 3, 3, 2, 3, 2, 1 ,1, 2 ,2, 2, 2, 3, 1, 2, 2, 1, 2, 2, 2, 1, 2, 1, 2, 2, 2)
@@ -18,32 +18,30 @@ net<-net%>%select(-X)%>%filter(net==1)%>%filter(Trait1!=Trait2)%>%left_join(volu
 
 
 net <- net[1:(nrow(net)/2),]
-##这里建立了一个连接矩阵，二者有连线就是1，没有就是0
 aaddd<-matrix(0,66,66)
 for (i in 1:length(seq(344,409))) {
   n1<-net%>%filter(Trait1==seq(344,409)[i])%>%select(Trait2)
   aaddd[n1$Trait2-343,i]=1
 }
 
-###这里调用了sna里面的函数，重新算了geom_net计算每个点的位置的过程，得到xy
 set.seed(10312016)
 guse<-gplot(aaddd)
 x<-guse[,1]
 y<-guse[,2]
 
-##做归一化
+
 x1<-(x-min(x))/(max(x)-min(x))
 y1<-(y-min(y))/(max(y)-min(y))
 
 
-####画图前准备
+
 net$group<-as.character(net$group)
 net$group2<-as.character(net$group2)
 net$Trait1<-as.character(net$Trait1)
 net$Trait2<-as.character(net$Trait2)
 label=unique(net$Trait1)
 
-#画图
+
 net$color_net <- as.numeric(net$group)
 net$color_net[which(net$color_net==1)] <- "PaleGreen3"
 net$color_net[which(net$color_net==2)] <- "LightBlue2"
